@@ -1,4 +1,4 @@
-// -*- mode: c-mode; -*-
+/* -*- mode: c; -*- */
 #include <ADK.h>
 
 ADK L;
