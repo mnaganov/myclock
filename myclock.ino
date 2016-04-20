@@ -7,19 +7,22 @@
 
 #define BTN_MAX 0x1B
 #define BTN_LOCK 7
+#define BUTTON_PRESS_TIMEOUT_MS 400
+#define BUTTON_HELD_TIMEOUT_MS 2000
 
 enum State {
   StateClock
 };
 
 enum LockState {
-  LockedState,
-  UnlockedState
+  UnlockedState,
+  LockedState
 };
 
 enum ButtonState {
   ButtonFree,
-  ButtonTouched
+  ButtonPressed,
+  ButtonHeld
 };
 
 ADK L;
@@ -27,6 +30,7 @@ ADK L;
 void adkPutchar(char c) {
   Serial.write(c);
 }
+extern "C" void dbgPrintf(const char *, ... );
 
 struct Color {
   uint8_t r, g, b;
@@ -52,15 +56,30 @@ static void displayLockedState(int state, struct Color c) {
 }
 
 static void updateButtonStates(int* states) {
-  //static uint64_t lastTime[BTN_MAX] = { 0, };
-  //static unit32_t lastStates = 0;
+  static uint64_t lastTime[BTN_MAX] = { 0, };
+  static uint32_t lastStates = 0;
   uint32_t currStates = (((uint32_t)L.capSenseButtons()) << 16) | L.capSenseIcons();
 
   for (uint32_t i = 0, mask = 1; i < BTN_MAX; ++i, mask <<= 1) {
-    states[i] = (currStates & mask) == mask ? ButtonTouched : ButtonFree;
+    uint64_t currentTime = L.getUptime();
+    if (states[i] == ButtonFree && (lastStates & mask) != mask && (currStates & mask) == mask) {
+      // Button touched
+      lastTime[i] = currentTime;
+    } else if (states[i] == ButtonFree && (currStates & mask) == mask &&
+               (currentTime - lastTime[i]) >= BUTTON_PRESS_TIMEOUT_MS) {
+      // Button touched long enough to be considered pressed
+      states[i] = ButtonPressed;
+    } else if (states[i] == ButtonPressed && (currStates & mask) == mask &&
+               (currentTime - lastTime[i]) >= BUTTON_HELD_TIMEOUT_MS) {
+      // Button touched long enough to be considered held
+      states[i] = ButtonHeld;
+    } else if (states[i] != ButtonFree && (currStates & mask) != mask) {
+      // Button released
+      states[i] = ButtonFree;
+    }
   }
 
-  //lastStates = currStates;
+  lastStates = currStates;
 }
 
 void setup(void) {
@@ -72,14 +91,25 @@ void setup(void) {
 void loop(void) {
   struct Color color = { 0xff, 0, 0 };
   State state = StateClock;
-  LockState locked = UnlockedState;
+  LockState locked = LockedState;
+  bool waitingForButtonRelease = false;
   int buttonStates[BTN_MAX] = { ButtonFree, };
 
   while(1) {
     L.adkEventProcess();
     updateButtonStates(buttonStates);
 
-    locked = buttonStates[BTN_LOCK] == ButtonTouched ? LockedState : UnlockedState;
+    if (!waitingForButtonRelease) {
+      if (locked == LockedState && buttonStates[BTN_LOCK] == ButtonHeld) {
+        locked = UnlockedState;
+        waitingForButtonRelease = true;
+      } else if (locked == UnlockedState && buttonStates[BTN_LOCK] != ButtonFree) {
+        locked = LockedState;
+        waitingForButtonRelease = true;
+      }
+    } else if (buttonStates[BTN_LOCK] == ButtonFree) {
+      waitingForButtonRelease = false;
+    }
     displayLockedState(locked, color);
 
     switch (state) {
