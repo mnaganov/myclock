@@ -3,6 +3,7 @@
 
 #define LED_LEFT_SEPARATOR 9
 #define LED_RIGHT_SEPARATOR 2
+#define ICON_CLOCK 3
 #define ICON_LOCK 7
 
 #define BTN_MAX 0x1B
@@ -11,7 +12,8 @@
 #define BUTTON_HELD_TIMEOUT_MS 2000
 
 enum State {
-  StateClock
+  StateClock,
+  StateSetTime,
 };
 
 enum LockState {
@@ -50,8 +52,12 @@ static void displayCurrentTime(struct Color c) {
   L.ledDrawLetter(5, '8', 0, 0, 0);
 }
 
+static bool isLockedState(int state) {
+  return state == StateClock;
+}
+
 static void displayLockedState(int state, struct Color c) {
-  bool locked = state == LockedState;
+  bool locked = isLockedState(state);
   L.ledDrawIcon(ICON_LOCK, locked ? c.r : 0, locked ? c.g : 0, locked ? c.b : 0);
 }
 
@@ -91,7 +97,6 @@ void setup(void) {
 void loop(void) {
   struct Color color = { 0xff, 0, 0 };
   State state = StateClock;
-  LockState locked = LockedState;
   bool waitingForButtonRelease = false;
   int buttonStates[BTN_MAX] = { ButtonFree, };
 
@@ -100,20 +105,22 @@ void loop(void) {
     updateButtonStates(buttonStates);
 
     if (!waitingForButtonRelease) {
-      if (locked == LockedState && buttonStates[BTN_LOCK] == ButtonHeld) {
-        locked = UnlockedState;
+      bool locked = isLockedState(state);
+      if (locked && buttonStates[BTN_LOCK] == ButtonHeld) {
+        state = StateSetTime;
         waitingForButtonRelease = true;
-      } else if (locked == UnlockedState && buttonStates[BTN_LOCK] != ButtonFree) {
-        locked = LockedState;
+      } else if (!locked && buttonStates[BTN_LOCK] != ButtonFree) {
+        state = StateClock;
         waitingForButtonRelease = true;
       }
     } else if (buttonStates[BTN_LOCK] == ButtonFree) {
       waitingForButtonRelease = false;
     }
-    displayLockedState(locked, color);
 
+    displayLockedState(state, color);
     switch (state) {
       case StateClock:
+      case StateSetTime:
         displayCurrentTime(color);
         break;
     }
