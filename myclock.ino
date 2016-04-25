@@ -1,10 +1,18 @@
 /* -*- mode: c; -*- */
 #include <ADK.h>
 
+#define LED_HOURS_10 0
+#define LED_HOURS_1 1
+#define LED_MINUTES_10 2
+#define LED_MINUTES_1 3
+#define LED_SECONDS_10 4
+#define LED_SECONDS_1 5
 #define LED_LEFT_SEPARATOR 9
 #define LED_RIGHT_SEPARATOR 2
-#define ICON_CLOCK 3
+#define ICON_CLOCK 0
 #define ICON_LOCK 7
+#define BLINK_VISIBLE_TIME_MS 1000
+#define BLINK_HIDDEN_TIME_MS 200
 
 #define BTN_MAX 0x1B
 #define BTN_LOCK 7
@@ -38,25 +46,51 @@ struct Color {
   uint8_t r, g, b;
 };
 
-static void displayCurrentTime(struct Color c) {
-  uint16_t year;
-  uint8_t month, day, h, m, s;
-  L.rtcGet(&year, &month, &day, &h, &m, &s);
-  L.ledDrawLetter(0, h / 10 + '0', c.r, c.g, c.b);
-  L.ledDrawLetter(1, h % 10 + '0', c.r, c.g, c.b);
-  L.ledWrite(LED_LEFT_SEPARATOR, c.r, c.g, c.b);
-  L.ledDrawLetter(2, m / 10 + '0', c.r, c.g, c.b);
-  L.ledDrawLetter(3, m % 10 + '0', c.r, c.g, c.b);
+static void displayCurrentTime(int state, struct Color c) {
+  static uint64_t lastTime = 0;
+  static bool visible = true;
+
+  if (state == StateSetTime) {
+    uint64_t currentTime = L.getUptime();
+    if (visible && (currentTime - lastTime) >= BLINK_VISIBLE_TIME_MS) {
+      visible = false;
+      lastTime = currentTime;
+    } else if (!visible && (currentTime - lastTime) >= BLINK_HIDDEN_TIME_MS) {
+      visible = true;
+      lastTime = currentTime;
+    }
+  } else {
+    visible = true;
+  }
+
+  if (visible) {
+    uint16_t year;
+    uint8_t month, day, h, m, s;
+    L.rtcGet(&year, &month, &day, &h, &m, &s);
+    L.ledDrawLetter(LED_HOURS_10, h / 10 + '0', c.r, c.g, c.b);
+    L.ledDrawLetter(LED_HOURS_1, h % 10 + '0', c.r, c.g, c.b);
+    L.ledWrite(LED_LEFT_SEPARATOR, c.r, c.g, c.b);
+    L.ledDrawLetter(LED_MINUTES_10, m / 10 + '0', c.r, c.g, c.b);
+    L.ledDrawLetter(LED_MINUTES_1, m % 10 + '0', c.r, c.g, c.b);
+  } else {
+    L.ledDrawLetter(LED_HOURS_10, '8', 0, 0, 0);
+    L.ledDrawLetter(LED_HOURS_1, '8', 0, 0, 0);
+    L.ledWrite(LED_LEFT_SEPARATOR, 0, 0, 0);
+    L.ledDrawLetter(LED_MINUTES_10, '8', 0, 0, 0);
+    L.ledDrawLetter(LED_MINUTES_1, '8', 0, 0, 0);
+  }
   L.ledWrite(LED_RIGHT_SEPARATOR, 0, 0, 0);
-  L.ledDrawLetter(4, '8', 0, 0, 0);
-  L.ledDrawLetter(5, '8', 0, 0, 0);
+  L.ledDrawLetter(LED_SECONDS_10, '8', 0, 0, 0);
+  L.ledDrawLetter(LED_SECONDS_1, '8', 0, 0, 0);
 }
 
 static bool isLockedState(int state) {
   return state == StateClock;
 }
 
-static void displayLockedState(int state, struct Color c) {
+static void displayIcons(int state, struct Color c) {
+  bool settingTime = state == StateSetTime;
+  L.ledDrawIcon(ICON_CLOCK, settingTime ? c.r : 0, settingTime ? c.g : 0, settingTime ? c.b : 0);
   bool locked = isLockedState(state);
   L.ledDrawIcon(ICON_LOCK, locked ? c.r : 0, locked ? c.g : 0, locked ? c.b : 0);
 }
@@ -117,12 +151,12 @@ void loop(void) {
       waitingForButtonRelease = false;
     }
 
-    displayLockedState(state, color);
     switch (state) {
       case StateClock:
       case StateSetTime:
-        displayCurrentTime(color);
+        displayCurrentTime(state, color);
         break;
     }
+    displayIcons(state, color);
   }
 }
