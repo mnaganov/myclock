@@ -14,6 +14,14 @@
 #define BLINK_VISIBLE_TIME_MS 1000
 #define BLINK_HIDDEN_TIME_MS 200
 
+#define BTN_HOURS_10_UP 0x1A
+#define BTN_HOURS_10_DN 0x1B
+#define BTN_HOURS_1_UP 0x18
+#define BTN_HOURS_1_DN 0x19
+#define BTN_MINUTES_10_UP 0x16
+#define BTN_MINUTES_10_DN 0x17
+#define BTN_MINUTES_1_UP 0x14
+#define BTN_MINUTES_1_DN 0x15
 #define BTN_MAX 0x1B
 #define BTN_LOCK 7
 #define BUTTON_PRESS_TIMEOUT_MS 400
@@ -46,7 +54,7 @@ struct Color {
   uint8_t r, g, b;
 };
 
-static void displayCurrentTime(int state, struct Color c) {
+static void displayCurrentTime(int state, struct Color c, uint8_t h, uint8_t m) {
   static uint64_t lastTime = 0;
   static bool visible = true;
 
@@ -64,9 +72,6 @@ static void displayCurrentTime(int state, struct Color c) {
   }
 
   if (visible) {
-    uint16_t year;
-    uint8_t month, day, h, m, s;
-    L.rtcGet(&year, &month, &day, &h, &m, &s);
     L.ledDrawLetter(LED_HOURS_10, h / 10 + '0', c.r, c.g, c.b);
     L.ledDrawLetter(LED_HOURS_1, h % 10 + '0', c.r, c.g, c.b);
     L.ledWrite(LED_LEFT_SEPARATOR, c.r, c.g, c.b);
@@ -133,6 +138,7 @@ void loop(void) {
   State state = StateClock;
   bool waitingForButtonRelease = false;
   int buttonStates[BTN_MAX] = { ButtonFree, };
+  uint8_t setH, setM;
 
   while(1) {
     L.adkEventProcess();
@@ -142,6 +148,9 @@ void loop(void) {
       bool locked = isLockedState(state);
       if (locked && buttonStates[BTN_LOCK] == ButtonHeld) {
         state = StateSetTime;
+        uint16_t year;
+        uint8_t month, day, s;
+        L.rtcGet(&year, &month, &day, &setH, &setM, &s);
         waitingForButtonRelease = true;
       } else if (!locked && buttonStates[BTN_LOCK] != ButtonFree) {
         state = StateClock;
@@ -152,10 +161,17 @@ void loop(void) {
     }
 
     switch (state) {
-      case StateClock:
-      case StateSetTime:
-        displayCurrentTime(state, color);
+      case StateClock: {
+        uint16_t year;
+        uint8_t month, day, h, m, s;
+        L.rtcGet(&year, &month, &day, &h, &m, &s);
+        displayCurrentTime(state, color, h, m);
         break;
+      }
+      case StateSetTime: {
+        displayCurrentTime(state, color, setH, setM);
+        break;
+      }
     }
     displayIcons(state, color);
   }
