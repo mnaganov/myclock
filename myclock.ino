@@ -23,6 +23,7 @@
 #define BTN_MINUTES_1_UP 0x14
 #define BTN_MINUTES_1_DN 0x15
 #define BTN_MAX 0x1B
+#define BTN_CLOCK 3
 #define BTN_LOCK 7
 #define BUTTON_PRESS_TIMEOUT_MS 400
 #define BUTTON_HELD_TIMEOUT_MS 2000
@@ -187,6 +188,14 @@ void loop(void) {
           setH = 23;
         }
         buttonStates[BTN_HOURS_1_DN] = ButtonProcessed;
+      }
+      if (buttonStates[BTN_CLOCK] == ButtonPressed) {
+        uint16_t year;
+        uint8_t month, day, h, m, s;
+        L.rtcGet(&year, &month, &day, &h, &m, &s);
+        L.rtcSet(year, month, day, setH, setM, 0);
+        state = StateClock;
+        buttonStates[BTN_CLOCK] = ButtonProcessed;
       }
     }
 
