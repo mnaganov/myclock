@@ -157,6 +157,39 @@ void loop(void) {
       buttonStates[BTN_LOCK] = ButtonProcessed;
     }
 
+    if (state == StateSetTime) {
+      if (buttonStates[BTN_MINUTES_1_UP] == ButtonPressed) {
+        if (setM++ == 59) {
+          setM = 0;
+          if (setH++ == 23) {
+            setH = 0;
+          }
+        }
+        buttonStates[BTN_MINUTES_1_UP] = ButtonProcessed;
+      }
+      if (buttonStates[BTN_MINUTES_1_DN] == ButtonPressed) {
+        if (setM-- == 0) {
+          setM = 59;
+          if (setH-- == 0) {
+            setH = 23;
+          }
+        }
+        buttonStates[BTN_MINUTES_1_DN] = ButtonProcessed;
+      }
+      if (buttonStates[BTN_HOURS_1_UP] == ButtonPressed) {
+        if (setH++ == 23) {
+          setH = 0;
+        }
+        buttonStates[BTN_HOURS_1_UP] = ButtonProcessed;
+      }
+      if (buttonStates[BTN_HOURS_1_DN] == ButtonPressed) {
+        if (setH-- == 0) {
+          setH = 23;
+        }
+        buttonStates[BTN_HOURS_1_DN] = ButtonProcessed;
+      }
+    }
+
     switch (state) {
       case StateClock: {
         uint16_t year;
