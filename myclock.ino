@@ -40,7 +40,9 @@ enum LockState {
 enum ButtonState {
   ButtonFree,
   ButtonPressed,
-  ButtonHeld
+  ButtonHeld,
+  // Waiting for button release
+  ButtonProcessed
 };
 
 ADK L;
@@ -136,7 +138,6 @@ void setup(void) {
 void loop(void) {
   struct Color color = { 0xff, 0, 0 };
   State state = StateClock;
-  bool waitingForButtonRelease = false;
   int buttonStates[BTN_MAX] = { ButtonFree, };
   uint8_t setH, setM;
 
@@ -144,20 +145,16 @@ void loop(void) {
     L.adkEventProcess();
     updateButtonStates(buttonStates);
 
-    if (!waitingForButtonRelease) {
-      bool locked = isLockedState(state);
-      if (locked && buttonStates[BTN_LOCK] == ButtonHeld) {
-        state = StateSetTime;
-        uint16_t year;
-        uint8_t month, day, s;
-        L.rtcGet(&year, &month, &day, &setH, &setM, &s);
-        waitingForButtonRelease = true;
-      } else if (!locked && buttonStates[BTN_LOCK] != ButtonFree) {
-        state = StateClock;
-        waitingForButtonRelease = true;
-      }
-    } else if (buttonStates[BTN_LOCK] == ButtonFree) {
-      waitingForButtonRelease = false;
+    bool locked = isLockedState(state);
+    if (locked && buttonStates[BTN_LOCK] == ButtonHeld) {
+      state = StateSetTime;
+      uint16_t year;
+      uint8_t month, day, s;
+      L.rtcGet(&year, &month, &day, &setH, &setM, &s);
+      buttonStates[BTN_LOCK] = ButtonProcessed;
+    } else if (!locked && buttonStates[BTN_LOCK] == ButtonPressed) {
+      state = StateClock;
+      buttonStates[BTN_LOCK] = ButtonProcessed;
     }
 
     switch (state) {
